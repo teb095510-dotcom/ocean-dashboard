@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>好想兔海洋探險島 營運儀表板</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.0/dist/chart.umd.js"></script>
+<style>
+:root { color-scheme: light; }
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family:"Microsoft JhengHei","Noto Sans TC",sans-serif; background:#F4F8FA; color:#1A2B33; font-size:14px; }
+.wrap { max-width:1180px; margin:0 auto; padding:16px; }
+header { background:#21295C; color:#fff; border-radius:12px; padding:16px 20px; margin-bottom:14px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; }
+header h1 { font-size:19px; }
+header .sub { color:#CADCFC; font-size:12px; margin-top:3px; }
+.btn { background:#F4B942; color:#21295C; border:none; padding:8px 16px; border-radius:18px; font-weight:bold; cursor:pointer; font-size:13px; }
+.tabs { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:14px; }
+.tab { padding:8px 14px; border-radius:20px; background:#fff; border:1px solid #D6E4EC; cursor:pointer; font-size:13.5px; font-weight:bold; color:#40606E; }
+.tab.act { background:#065A82; color:#fff; border-color:#065A82; }
+.page { display:none; } .page.act { display:block; }
+.cards { display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:10px; margin-bottom:14px; }
+.card { background:#fff; border-radius:12px; padding:14px 16px; box-shadow:0 1px 3px rgba(33,41,92,.08); }
+.card .big { font-size:26px; font-weight:bold; color:#065A82; }
+.card .lbl { font-size:12px; color:#5C7885; margin-top:2px; }
+.card .chg { font-size:12px; font-weight:bold; }
+.up { color:#1C8A5A; } .dn { color:#E2504F; }
+.panel { background:#fff; border-radius:12px; padding:16px; box-shadow:0 1px 3px rgba(33,41,92,.08); margin-bottom:14px; }
+.panel h3 { font-size:15px; color:#21295C; margin-bottom:10px; }
+.chartbox { position:relative; height:300px; } .chartbox.sm { height:240px; }
+.grid2 { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+@media (max-width:800px){ .grid2 { grid-template-columns:1fr; } }
+table { width:100%; border-collapse:collapse; font-size:13px; }
+th { background:#21295C; color:#fff; padding:7px 9px; text-align:left; white-space:nowrap; }
+td { padding:7px 9px; border-bottom:1px solid #E3EDF2; }
+tr:nth-child(even) td { background:#F7FBFD; }
+td.r, th.r { text-align:right; }
+.progress { background:#E3EDF2; border-radius:9px; height:18px; overflow:hidden; margin-top:6px; }
+.progress > div { height:100%; background:linear-gradient(90deg,#065A82,#1C7293); border-radius:9px; color:#fff; font-size:11px; line-height:18px; padding-left:8px; white-space:nowrap; }
+.badge { display:inline-block; padding:2px 9px; border-radius:10px; font-size:11.5px; font-weight:bold; }
+.b-high{background:#FDE8E8;color:#C43D3C}.b-mid{background:#FDF3DC;color:#B07A00}.b-opp{background:#E2F5EB;color:#1C8A5A}.b-info{background:#E8F2F7;color:#065A82}
+.muted { color:#7A8F99; font-size:12px; }
+.empty { text-align:center; padding:28px; color:#7A8F99; background:#F7FBFD; border-radius:10px; font-size:13px; }
+#loading { text-align:center; padding:40px; color:#40606E; }
+.err { background:#FDE8E8; color:#C43D3C; border-radius:10px; padding:12px; margin-bottom:12px; font-size:13px; display:none; }
+a { color:#065A82; }
+.note { font-size:12px; color:#7A8F99; margin-top:8px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>好想兔海洋探險島｜營運分析儀表板</h1>
+      <div class="sub" id="upd">資料來源：Google試算表 · 打開自動更新</div>
+    </div>
+    <button class="btn" onclick="location.reload()">↻ 重新整理</button>
+  </header>
+  <div class="err" id="errBox"></div>
+  <div class="tabs" id="tabs">
+    <div class="tab act" data-p="p1">① 營運總覽</div>
+    <div class="tab" data-p="p2">② 營業數據</div>
+    <div class="tab" data-p="p3">③ 商品與二消</div>
+    <div class="tab" data-p="p4">④ 活動檢討</div>
+    <div class="tab" data-p="p5">⑤ 競業新聞</div>
+    <div class="tab" data-p="p6">⑥ 目標達成</div>
+  </div>
+  <div id="loading">⏳ 正在讀取雲端資料…</div>
+
+  <div class="page act" id="p1">
+    <div class="panel" id="battle"></div>
+    <div class="cards" id="kpiCards"></div>
+    <div class="panel"><h3>近12個月營收走勢（萬元）</h3><div class="chartbox"><canvas id="cRev"></canvas></div></div>
+    <div class="grid2">
+      <div class="panel"><h3>入園人次：付費 vs 免費/預售兌換</h3><div class="chartbox sm"><canvas id="cPpl"></canvas></div></div>
+      <div class="panel"><h3>最新月份收入結構</h3><div class="chartbox sm"><canvas id="cMix"></canvas></div></div>
+    </div>
+  </div>
+
+  <div class="page" id="p2">
+    <div class="panel"><h3>每日營收（日營收登記表）</h3><div id="dailyBox"><div class="empty">尚無資料</div></div><div class="chartbox" id="dailyChartBox" style="display:none"><canvas id="cDaily"></canvas></div><div class="note">門市每日打烊後在「海洋探險島-日營收登記」試算表新增一列（日期/營收/入園人次），此頁自動更新。紅=週末、藍=平日。</div></div>
+    <div class="panel"><h3>各收入區塊 月別明細</h3><div style="overflow-x:auto"><table id="tBlocks"></table></div></div>
+    <div class="grid2">
+      <div class="panel"><h3>客單價走勢（元/人）</h3><div class="chartbox sm"><canvas id="cArpu"></canvas></div></div>
+      <div class="panel"><h3>特殊活動/加值收入</h3><div class="chartbox sm"><canvas id="cSpec"></canvas></div></div>
+    </div>
+  </div>
+
+  <div class="page" id="p3">
+    <div class="grid2">
+      <div class="panel"><h3>商品收入走勢</h3><div class="chartbox sm"><canvas id="cGoods"></canvas></div></div>
+      <div class="panel"><h3>餐飲收入走勢</h3><div class="chartbox sm"><canvas id="cFood"></canvas></div></div>
+    </div>
+    <div class="panel"><h3>二消占比（商品＋餐飲＋特殊＋其他 / 總營收）</h3><div class="chartbox sm"><canvas id="cSecond"></canvas></div></div>
+  </div>
+
+  <div class="page" id="p4">
+    <div class="panel"><h3>活動時間軸 × 週基準對比（週一～週日）</h3><div style="overflow-x:auto"><table id="tActs"></table></div><div class="note">活動週營收 vs 前一完整週；需日營收資料，未涵蓋期間顯示「—」。</div></div>
+    <div class="panel"><h3>週營收彙總（週一～週日）</h3><div id="weekBox"><div class="empty">待日營收資料</div></div><div class="chartbox sm" id="weekChartBox" style="display:none"><canvas id="cWeek"></canvas></div></div>
+  </div>
+
+  <div class="page" id="p5">
+    <div class="panel"><h3>競業與產業新聞（每週一自動更新）</h3><div style="overflow-x:auto"><table id="tNews"></table></div></div>
+  </div>
+
+  <div class="page" id="p6">
+    <div class="panel"><h3>KPI 目標達成</h3><div id="goalBox"></div></div>
+  </div>
+</div>
+
+<script>
+// ====== 資料來源（Google試算表需設定「知道連結的使用者→檢視者」）======
+const SHEETS = {
+  monthly:'1_vdNnGLdw9O3rSPU4yFIG32NFEc77OFCpBJ_Vno50q8',
+  goals:'1nmIcwYQbZt9YMeavR8eZit801Dtafl_o_O-GM1XVCig',
+  news:'1NKMK146UKwRhuMIioAADp7WikRO8dZkhcGynMo6L4l4',
+  daily:'1nm6CkShQmLe2Ddsy6XNTyJAb4vi8YeYbqzsVg8TrKm4',
+  acts:'1AWcJeX_fp-fZfeIa36mPI2BYm28K3jJ1UvJsHZX6BOE'
+};
+const csvUrl=id=>`https://docs.google.com/spreadsheets/d/${id}/gviz/tq?tqx=out:csv&t=${Date.now()}`;
+function parseCSV(t){
+  const rows=[]; let row=[],cur='',q=false;
+  for(let i=0;i<t.length;i++){ const c=t[i];
+    if(q){ if(c==='"'){ if(t[i+1]==='"'){cur+='"';i++;} else q=false; } else cur+=c; }
+    else if(c==='"') q=true;
+    else if(c===','){ row.push(cur); cur=''; }
+    else if(c==='\n'||c==='\r'){ if(cur!==''||row.length){ row.push(cur); rows.push(row); row=[]; cur=''; } }
+    else cur+=c; }
+  if(cur!==''||row.length){ row.push(cur); rows.push(row); }
+  if(!rows.length) return [];
+  const hdr=rows[0].map(h=>h.trim());
+  return rows.slice(1).map(r=>{ const o={}; hdr.forEach((h,i)=>o[h]=(r[i]||'').trim()); return o; });
+}
+async function getSheet(id){ if(!id) return []; const r=await fetch(csvUrl(id)); if(!r.ok) throw new Error('無法讀取試算表(請確認已開啟「知道連結的人可檢視」)'); return parseCSV(await r.text()); }
+const num=v=>{ const n=parseFloat(String(v||'').replace(/,/g,'')); return isNaN(n)?0:n; };
+const fmt=n=>n==null?'—':Math.round(n).toLocaleString('zh-TW');
+const wan=n=>(n/10000).toFixed(0);
+let M=[],G=[],N=[],A=[],D=[];
+const charts={}; const C={deep:'#065A82',teal:'#1C7293',gold:'#F4B942',coral:'#F96167',mid:'#21295C',grey:'#A9C6D4'};
+function mk(id,cfg){ if(charts[id]) charts[id].destroy(); const el=document.getElementById(id); if(!el) return; charts[id]=new Chart(el,cfg); }
+
+async function loadAll(){
+  try{
+    [M,G,N,A,D]=await Promise.all([getSheet(SHEETS.monthly),getSheet(SHEETS.goals),getSheet(SHEETS.news),getSheet(SHEETS.acts).catch(()=>[]),getSheet(SHEETS.daily).catch(()=>[])]);
+    D=D.filter(r=>/^\d{4}-\d{2}-\d{2}$/.test(r['日期']||'')&&num(r['營收'])>0);
+    document.getElementById('upd').textContent='最後更新：'+new Date().toLocaleString('zh-TW');
+    render();
+  }catch(e){
+    document.getElementById('loading').style.display='none';
+    const eb=document.getElementById('errBox'); eb.style.display='block';
+    eb.textContent='讀取失敗：'+e.message;
+  }
+}
+function render(){
+  document.getElementById('loading').style.display='none';
+  const labels=M.map(r=>r['月份'].slice(2).replace('-','/'));
+  const last=M[M.length-1]||{}, prev=M[M.length-2]||{};
+  // battle
+  const now=new Date(), ym=now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0');
+  const goal=G.find(r=>r['月份']===ym);
+  const dailyThis=D.filter(d=>d['日期'].startsWith(ym));
+  let actual=dailyThis.reduce((s,d)=>s+num(d['營收']),0), src=dailyThis.length?`日營收累計至 ${dailyThis[dailyThis.length-1]['日期']}（${dailyThis.length}天）`:'';
+  if(!actual && last['月份']===ym){ actual=num(last['總營收']); src='月營運表'; }
+  const b=document.getElementById('battle');
+  if(goal){ const tgt=num(goal['營收目標']); const pct=tgt?Math.min(100,actual/tgt*100):0;
+    const pace=dailyThis.length?(actual/dailyThis.length)*new Date(now.getFullYear(),now.getMonth()+1,0).getDate():null;
+    b.innerHTML=`<h3>🌊 ${ym} 月目標進度（目標 ${wan(tgt)}萬）</h3><div class="progress"><div style="width:${pct.toFixed(1)}%">${wan(actual)}萬 · ${pct.toFixed(0)}%</div></div><div class="note">${src||'本月尚無資料'}${pace?` ｜ 依日均推估月底約 <b>${wan(pace)}萬</b>`:''}</div>`;
+  } else b.innerHTML='<h3>本月無目標設定</h3>';
+  // cards
+  const chg=(a,b)=>b?((a/b-1)*100):null;
+  const cards=[['總營收',wan(num(last['總營收']))+'萬',chg(num(last['總營收']),num(prev['總營收']))],
+    ['總入園人次',fmt(num(last['總入園人次'])),chg(num(last['總入園人次']),num(prev['總入園人次']))],
+    ['付費入園',fmt(num(last['付費入園'])),chg(num(last['付費入園']),num(prev['付費入園']))],
+    ['客單價',num(last['客單價'])+'元',chg(num(last['客單價']),num(prev['客單價']))]];
+  document.getElementById('kpiCards').innerHTML=cards.map(c=>{
+    const ch=c[2]==null?'':`<span class="chg ${c[2]>=0?'up':'dn'}">${c[2]>=0?'▲':'▼'} ${Math.abs(c[2]).toFixed(1)}% (月增)</span>`;
+    return `<div class="card"><div class="big">${c[1]}</div><div class="lbl">${c[0]}（${last['月份']||''}）</div>${ch}</div>`; }).join('');
+  const base={responsive:true,maintainAspectRatio:false};
+  mk('cRev',{type:'bar',data:{labels,datasets:[{data:M.map(r=>num(r['總營收'])/10000),backgroundColor:C.deep,borderRadius:4}]},options:{...base,plugins:{legend:{display:false}},scales:{y:{grid:{color:'#E3EDF2'}},x:{grid:{display:false}}}}});
+  mk('cPpl',{type:'bar',data:{labels,datasets:[{label:'付費',data:M.map(r=>num(r['付費入園'])),backgroundColor:C.deep,stack:'s'},{label:'免費/兌換',data:M.map(r=>num(r['免費兌換'])),backgroundColor:C.gold,stack:'s'}]},options:{...base,scales:{x:{stacked:true,grid:{display:false}},y:{stacked:true,grid:{color:'#E3EDF2'}}}}});
+  const mixK=[['樂園現場',C.deep],['電商',C.teal],['團體',C.coral],['其他',C.grey],['特殊活動','#7FA8BC'],['商品',C.gold],['餐飲','#2E8B74'],['專案','#C9DCE5']];
+  mk('cMix',{type:'doughnut',data:{labels:mixK.map(k=>k[0]),datasets:[{data:mixK.map(k=>Math.max(0,num(last[k[0]]))),backgroundColor:mixK.map(k=>k[1])}]},options:{...base,plugins:{legend:{position:'right'}}}});
+  // p2
+  const cols=['月份','總營收','樂園現場','專案','電商','團體','其他','特殊活動','商品','餐飲','總入園人次','付費入園','客單價','備註'];
+  document.getElementById('tBlocks').innerHTML='<tr>'+cols.map(c=>`<th${['月份','備註'].includes(c)?'':' class="r"'}>${c}</th>`).join('')+'</tr>'+M.slice().reverse().map(r=>'<tr>'+cols.map(c=>['月份','備註'].includes(c)?`<td>${r[c]||''}</td>`:`<td class="r">${fmt(num(r[c]))}</td>`).join('')+'</tr>').join('');
+  mk('cArpu',{type:'line',data:{labels,datasets:[{data:M.map(r=>num(r['客單價'])),borderColor:C.teal,backgroundColor:C.teal,tension:.3,pointRadius:3}]},options:{...base,plugins:{legend:{display:false}},scales:{y:{grid:{color:'#E3EDF2'}},x:{grid:{display:false}}}}});
+  mk('cSpec',{type:'bar',data:{labels,datasets:[{label:'特殊活動',data:M.map(r=>num(r['特殊活動'])/10000),backgroundColor:C.gold,borderRadius:4},{label:'其他',data:M.map(r=>num(r['其他'])/10000),backgroundColor:C.grey,borderRadius:4}]},options:{...base,scales:{y:{title:{display:true,text:'萬元'},grid:{color:'#E3EDF2'}},x:{grid:{display:false}}}}});
+  if(D.length){
+    document.getElementById('dailyBox').innerHTML=''; document.getElementById('dailyChartBox').style.display='block';
+    const dl=D.slice(-31);
+    mk('cDaily',{type:'bar',data:{labels:dl.map(d=>d['日期'].slice(5)),datasets:[{data:dl.map(d=>num(d['營收'])),backgroundColor:dl.map(d=>{const wd=new Date(d['日期']).getDay();return(wd===0||wd===6)?C.coral:C.deep;}),borderRadius:3}]},options:{...base,plugins:{legend:{display:false}},scales:{y:{grid:{color:'#E3EDF2'}},x:{grid:{display:false}}}}});
+  }
+  // p3
+  mk('cGoods',{type:'bar',data:{labels,datasets:[{data:M.map(r=>num(r['商品'])/10000),backgroundColor:C.gold,borderRadius:4}]},options:{...base,plugins:{legend:{display:false}},scales:{y:{title:{display:true,text:'萬元'},grid:{color:'#E3EDF2'}},x:{grid:{display:false}}}}});
+  mk('cFood',{type:'bar',data:{labels,datasets:[{data:M.map(r=>num(r['餐飲'])/10000),backgroundColor:'#2E8B74',borderRadius:4}]},options:{...base,plugins:{legend:{display:false}},scales:{y:{title:{display:true,text:'萬元'},grid:{color:'#E3EDF2'}},x:{grid:{display:false}}}}});
+  mk('cSecond',{type:'line',data:{labels,datasets:[{data:M.map(r=>{const t=num(r['總營收']);return t?((num(r['商品'])+num(r['餐飲'])+num(r['特殊活動'])+num(r['其他']))/t*100):0;}),borderColor:C.mid,backgroundColor:C.mid,tension:.3,pointRadius:3}]},options:{...base,plugins:{legend:{display:false}},scales:{y:{ticks:{callback:v=>v+'%'},grid:{color:'#E3EDF2'}},x:{grid:{display:false}}}}});
+  // p4 weeks
+  const wkey=s=>{ const dt=new Date(s); const wd=(dt.getDay()+6)%7; dt.setDate(dt.getDate()-wd); return dt.toISOString().slice(0,10); };
+  const weeks={};
+  D.forEach(d=>{ const k=wkey(d['日期']); (weeks[k]=weeks[k]||{rev:0}); weeks[k].rev+=num(d['營收']); });
+  const wkeys=Object.keys(weeks).sort();
+  if(wkeys.length){ document.getElementById('weekBox').innerHTML=''; document.getElementById('weekChartBox').style.display='block';
+    mk('cWeek',{type:'bar',data:{labels:wkeys.map(k=>k.slice(5)+'週'),datasets:[{data:wkeys.map(k=>weeks[k].rev/10000),backgroundColor:C.teal,borderRadius:4}]},options:{...base,plugins:{legend:{display:false}},scales:{y:{title:{display:true,text:'萬元'},grid:{color:'#E3EDF2'}},x:{grid:{display:false}}}}});
+  }
+  const actRows=(A.length?A:[]).slice().reverse().map(r=>{
+    let cmp='—';
+    if(r['開始日']&&wkeys.length){ const wk=wkey(r['開始日']); const i=wkeys.indexOf(wk);
+      if(i>0){ const g=(weeks[wkeys[i]].rev/weeks[wkeys[i-1]].rev-1)*100; cmp=`<span class="${g>=0?'up':'dn'}">${g>=0?'▲':'▼'}${Math.abs(g).toFixed(0)}%</span>`; } }
+    return `<tr><td>${r['開始日']||''}${r['結束日']?' ~ '+r['結束日']:''}</td><td><b>${r['活動名稱']||''}</b></td><td>${r['類型']||''}</td><td class="r">${cmp}</td><td>${r['說明檢討註記']||r['說明(檢討註記)']||''}</td></tr>`; }).join('');
+  document.getElementById('tActs').innerHTML='<tr><th>期間</th><th>活動</th><th>類型</th><th class="r">活動週vs前週</th><th>檢討註記</th></tr>'+(actRows||'<tr><td colspan="5" class="muted">活動紀錄表未設定或無資料</td></tr>');
+  // p5 news
+  const lvl=s=>s==='高'?'b-high':s==='中'?'b-mid':s==='機會'?'b-opp':'b-info';
+  document.getElementById('tNews').innerHTML='<tr><th>日期</th><th>標題</th><th>對象</th><th>威脅</th><th>影響與建議</th><th>來源</th></tr>'+
+    N.slice().sort((a,b)=>(b['日期']||'').localeCompare(a['日期']||'')).map(r=>`<tr><td>${r['日期']||''}</td><td>${r['標題']||''}</td><td>${r['對象']||''}</td><td><span class="badge ${lvl(r['威脅等級'])}">${r['威脅等級']||''}</span></td><td>${r['影響與建議']||''}</td><td>${r['來源連結']?`<a href="${r['來源連結']}" target="_blank">連結</a>`:''}</td></tr>`).join('');
+  // p6
+  document.getElementById('goalBox').innerHTML=G.map(r=>{
+    const ymg=r['月份']; const mrow=M.find(x=>x['月份']===ymg);
+    let act=mrow?num(mrow['總營收']):0;
+    const dsum=D.filter(d=>d['日期'].startsWith(ymg)).reduce((s,d)=>s+num(d['營收']),0);
+    if(dsum>act) act=dsum;
+    const tgt=num(r['營收目標']); const pct=tgt?Math.min(100,act/tgt*100):0;
+    return `<div style="margin-bottom:12px"><b>${ymg}</b> 目標 ${wan(tgt)}萬 ｜ 實際 ${act?wan(act)+'萬':'—'} <span class="muted">${r['備註可自行修改']||''}</span><div class="progress"><div style="width:${pct}%">${pct.toFixed(0)}%</div></div></div>`; }).join('');
+}
+document.getElementById('tabs').addEventListener('click',e=>{
+  const t=e.target.closest('.tab'); if(!t) return;
+  document.querySelectorAll('.tab').forEach(x=>x.classList.remove('act'));
+  document.querySelectorAll('.page').forEach(x=>x.classList.remove('act'));
+  t.classList.add('act'); document.getElementById(t.dataset.p).classList.add('act');
+  Object.values(charts).forEach(c=>c.resize());
+});
+loadAll();
+</script>
+</body>
+</html>
