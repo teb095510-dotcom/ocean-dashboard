@@ -90,7 +90,10 @@ a { color:#065A82; }
       <div class="panel"><h3>商品收入走勢</h3><div class="chartbox sm"><canvas id="cGoods"></canvas></div></div>
       <div class="panel"><h3>餐飲收入走勢</h3><div class="chartbox sm"><canvas id="cFood"></canvas></div></div>
     </div>
-    <div class="panel"><h3>二消占比（商品＋餐飲＋特殊＋其他 / 總營收）</h3><div class="chartbox sm"><canvas id="cSecond"></canvas></div></div>
+    <div class="grid2">
+      <div class="panel"><h3>娛樂機台與其他消費</h3><div class="chartbox sm"><canvas id="cMach"></canvas></div><div class="note">娛樂機台/特殊活動含：扭蛋機、拍貼機、娃娃機、彈珠台、按摩椅、姓名貼機、市集、限時體驗等；加值服務含臉部彩繪、泡泡屋租借。</div></div>
+      <div class="panel"><h3>二消占比（商品＋餐飲＋機台＋加值 / 總營收）</h3><div class="chartbox sm"><canvas id="cSecond"></canvas></div></div>
+    </div>
   </div>
 
   <div class="page" id="p4">
@@ -111,7 +114,7 @@ a { color:#065A82; }
 // ====== 資料來源（Google試算表需設定「知道連結的使用者→檢視者」）======
 const SHEETS = {
   monthly:'1_vdNnGLdw9O3rSPU4yFIG32NFEc77OFCpBJ_Vno50q8',
-  goals:'1nmIcwYQbZt9YMeavR8eZit801Dtafl_o_O-GM1XVCig',
+  goals:'18rPGumbOYvshqdAMj8Mm8NtN1c2cLmgeXCMJOAfQgv0',
   news:'1NKMK146UKwRhuMIioAADp7WikRO8dZkhcGynMo6L4l4',
   daily:'1nm6CkShQmLe2Ddsy6XNTyJAb4vi8YeYbqzsVg8TrKm4',
   acts:'1AWcJeX_fp-fZfeIa36mPI2BYm28K3jJ1UvJsHZX6BOE'
@@ -136,6 +139,11 @@ const fmt=n=>n==null?'—':Math.round(n).toLocaleString('zh-TW');
 const wan=n=>(n/10000).toFixed(0);
 let M=[],G=[],N=[],A=[],D=[];
 const charts={}; const C={deep:'#065A82',teal:'#1C7293',gold:'#F4B942',coral:'#F96167',mid:'#21295C',grey:'#A9C6D4'};
+const dlPlugin={id:'dlp',afterDatasetsDraw(chart){const o=chart.config.options.dlMode;if(!o)return;const ctx=chart.ctx;ctx.save();ctx.font='bold 10px "Microsoft JhengHei",sans-serif';ctx.fillStyle='#3D5866';ctx.textAlign='center';
+if(o==='total'){const n=chart.data.labels.length;for(let i=0;i<n;i++){let tot=0,topY=1e9,x=0;chart.data.datasets.forEach((ds,di)=>{const m=chart.getDatasetMeta(di);if(m.hidden)return;const el=m.data[i];if(!el)return;tot+=Number(ds.data[i])||0;if(el.y<topY){topY=el.y;x=el.x;}});if(tot)ctx.fillText(Math.round(tot).toLocaleString(),x,topY-4);}}
+else{chart.data.datasets.forEach((ds,di)=>{const m=chart.getDatasetMeta(di);if(m.hidden)return;m.data.forEach((el,i)=>{const v=ds.data[i];if(v==null||v===0)return;const f=chart.config.options.dlFmt;ctx.fillText(f?f(v):Math.round(v).toLocaleString(),el.x,el.y-5);});});}
+ctx.restore();}};
+Chart.register(dlPlugin);
 function mk(id,cfg){ if(charts[id]) charts[id].destroy(); const el=document.getElementById(id); if(!el) return; charts[id]=new Chart(el,cfg); }
 
 async function loadAll(){
@@ -175,31 +183,32 @@ function render(){
     const ch=c[2]==null?'':`<span class="chg ${c[2]>=0?'up':'dn'}">${c[2]>=0?'▲':'▼'} ${Math.abs(c[2]).toFixed(1)}% (月增)</span>`;
     return `<div class="card"><div class="big">${c[1]}</div><div class="lbl">${c[0]}（${last['月份']||''}）</div>${ch}</div>`; }).join('');
   const base={responsive:true,maintainAspectRatio:false};
-  mk('cRev',{type:'bar',data:{labels,datasets:[{data:M.map(r=>num(r['總營收'])/10000),backgroundColor:C.deep,borderRadius:4}]},options:{...base,plugins:{legend:{display:false}},scales:{y:{grid:{color:'#E3EDF2'}},x:{grid:{display:false}}}}});
-  mk('cPpl',{type:'bar',data:{labels,datasets:[{label:'付費',data:M.map(r=>num(r['付費入園'])),backgroundColor:C.deep,stack:'s'},{label:'免費/兌換',data:M.map(r=>num(r['免費兌換'])),backgroundColor:C.gold,stack:'s'}]},options:{...base,scales:{x:{stacked:true,grid:{display:false}},y:{stacked:true,grid:{color:'#E3EDF2'}}}}});
+  mk('cRev',{type:'bar',data:{labels,datasets:[{data:M.map(r=>num(r['總營收'])/10000),backgroundColor:C.deep,borderRadius:4}]},options:{...base,dlMode:'each',dlFmt:v=>Math.round(v)+'萬',plugins:{legend:{display:false}},scales:{y:{grace:'12%',grid:{color:'#E3EDF2'}},x:{grid:{display:false}}}}});
+  mk('cPpl',{type:'bar',data:{labels,datasets:[{label:'付費',data:M.map(r=>num(r['付費入園'])),backgroundColor:C.deep,stack:'s'},{label:'免費/兌換',data:M.map(r=>num(r['免費兌換'])),backgroundColor:C.gold,stack:'s'}]},options:{...base,dlMode:'total',scales:{x:{stacked:true,grid:{display:false}},y:{stacked:true,grace:'12%',grid:{color:'#E3EDF2'}}}}});
   const mixK=[['樂園現場',C.deep],['電商',C.teal],['團體',C.coral],['其他',C.grey],['特殊活動','#7FA8BC'],['商品',C.gold],['餐飲','#2E8B74'],['專案','#C9DCE5']];
   mk('cMix',{type:'doughnut',data:{labels:mixK.map(k=>k[0]),datasets:[{data:mixK.map(k=>Math.max(0,num(last[k[0]]))),backgroundColor:mixK.map(k=>k[1])}]},options:{...base,plugins:{legend:{position:'right'}}}});
   // p2
   const cols=['月份','總營收','樂園現場','專案','電商','團體','其他','特殊活動','商品','餐飲','總入園人次','付費入園','客單價','備註'];
   document.getElementById('tBlocks').innerHTML='<tr>'+cols.map(c=>`<th${['月份','備註'].includes(c)?'':' class="r"'}>${c}</th>`).join('')+'</tr>'+M.slice().reverse().map(r=>'<tr>'+cols.map(c=>['月份','備註'].includes(c)?`<td>${r[c]||''}</td>`:`<td class="r">${fmt(num(r[c]))}</td>`).join('')+'</tr>').join('');
-  mk('cArpu',{type:'line',data:{labels,datasets:[{data:M.map(r=>num(r['客單價'])),borderColor:C.teal,backgroundColor:C.teal,tension:.3,pointRadius:3}]},options:{...base,plugins:{legend:{display:false}},scales:{y:{grid:{color:'#E3EDF2'}},x:{grid:{display:false}}}}});
-  mk('cSpec',{type:'bar',data:{labels,datasets:[{label:'特殊活動',data:M.map(r=>num(r['特殊活動'])/10000),backgroundColor:C.gold,borderRadius:4},{label:'其他',data:M.map(r=>num(r['其他'])/10000),backgroundColor:C.grey,borderRadius:4}]},options:{...base,scales:{y:{title:{display:true,text:'萬元'},grid:{color:'#E3EDF2'}},x:{grid:{display:false}}}}});
+  mk('cArpu',{type:'line',data:{labels,datasets:[{data:M.map(r=>num(r['客單價'])),borderColor:C.teal,backgroundColor:C.teal,tension:.3,pointRadius:3}]},options:{...base,dlMode:'each',dlFmt:v=>Math.round(v)+'元',plugins:{legend:{display:false}},scales:{y:{grace:'12%',grid:{color:'#E3EDF2'}},x:{grid:{display:false}}}}});
+  mk('cSpec',{type:'bar',data:{labels,datasets:[{label:'特殊活動',data:M.map(r=>num(r['特殊活動'])/10000),backgroundColor:C.gold,borderRadius:4},{label:'其他',data:M.map(r=>num(r['其他'])/10000),backgroundColor:C.grey,borderRadius:4}]},options:{...base,dlMode:'each',dlFmt:v=>v.toFixed(1),scales:{y:{grace:'12%',title:{display:true,text:'萬元'},grid:{color:'#E3EDF2'}},x:{grid:{display:false}}}}});
   if(D.length){
     document.getElementById('dailyBox').innerHTML=''; document.getElementById('dailyChartBox').style.display='block';
     const dl=D.slice(-31);
-    mk('cDaily',{type:'bar',data:{labels:dl.map(d=>d['日期'].slice(5)),datasets:[{data:dl.map(d=>num(d['營收'])),backgroundColor:dl.map(d=>{const wd=new Date(d['日期']).getDay();return(wd===0||wd===6)?C.coral:C.deep;}),borderRadius:3}]},options:{...base,plugins:{legend:{display:false}},scales:{y:{grid:{color:'#E3EDF2'}},x:{grid:{display:false}}}}});
+    mk('cDaily',{type:'bar',data:{labels:dl.map(d=>d['日期'].slice(5)),datasets:[{data:dl.map(d=>num(d['營收'])),backgroundColor:dl.map(d=>{const wd=new Date(d['日期']).getDay();return(wd===0||wd===6)?C.coral:C.deep;}),borderRadius:3}]},options:{...base,dlMode:'each',dlFmt:v=>(v/10000).toFixed(1)+'萬',plugins:{legend:{display:false}},scales:{y:{grace:'12%',grid:{color:'#E3EDF2'}},x:{grid:{display:false}}}}});
   }
   // p3
-  mk('cGoods',{type:'bar',data:{labels,datasets:[{data:M.map(r=>num(r['商品'])/10000),backgroundColor:C.gold,borderRadius:4}]},options:{...base,plugins:{legend:{display:false}},scales:{y:{title:{display:true,text:'萬元'},grid:{color:'#E3EDF2'}},x:{grid:{display:false}}}}});
-  mk('cFood',{type:'bar',data:{labels,datasets:[{data:M.map(r=>num(r['餐飲'])/10000),backgroundColor:'#2E8B74',borderRadius:4}]},options:{...base,plugins:{legend:{display:false}},scales:{y:{title:{display:true,text:'萬元'},grid:{color:'#E3EDF2'}},x:{grid:{display:false}}}}});
-  mk('cSecond',{type:'line',data:{labels,datasets:[{data:M.map(r=>{const t=num(r['總營收']);return t?((num(r['商品'])+num(r['餐飲'])+num(r['特殊活動'])+num(r['其他']))/t*100):0;}),borderColor:C.mid,backgroundColor:C.mid,tension:.3,pointRadius:3}]},options:{...base,plugins:{legend:{display:false}},scales:{y:{ticks:{callback:v=>v+'%'},grid:{color:'#E3EDF2'}},x:{grid:{display:false}}}}});
+  mk('cGoods',{type:'bar',data:{labels,datasets:[{data:M.map(r=>num(r['商品'])/10000),backgroundColor:C.gold,borderRadius:4}]},options:{...base,dlMode:'each',dlFmt:v=>v.toFixed(1)+'萬',plugins:{legend:{display:false}},scales:{y:{grace:'12%',title:{display:true,text:'萬元'},grid:{color:'#E3EDF2'}},x:{grid:{display:false}}}}});
+  mk('cFood',{type:'bar',data:{labels,datasets:[{data:M.map(r=>num(r['餐飲'])/10000),backgroundColor:'#2E8B74',borderRadius:4}]},options:{...base,dlMode:'each',dlFmt:v=>v.toFixed(1)+'萬',plugins:{legend:{display:false}},scales:{y:{grace:'12%',title:{display:true,text:'萬元'},grid:{color:'#E3EDF2'}},x:{grid:{display:false}}}}});
+  mk('cMach',{type:'bar',data:{labels,datasets:[{label:'娛樂機台/特殊活動',data:M.map(r=>num(r['特殊活動'])/10000),backgroundColor:C.gold,borderRadius:4},{label:'彩繪/泡泡屋等加值',data:M.map(r=>num(r['其他'])/10000),backgroundColor:C.grey,borderRadius:4}]},options:{...base,dlMode:'each',dlFmt:v=>v.toFixed(1),scales:{y:{grace:'12%',title:{display:true,text:'萬元'},grid:{color:'#E3EDF2'}},x:{grid:{display:false}}}}});
+  mk('cSecond',{type:'line',data:{labels,datasets:[{data:M.map(r=>{const t=num(r['總營收']);return t?((num(r['商品'])+num(r['餐飲'])+num(r['特殊活動'])+num(r['其他']))/t*100):0;}),borderColor:C.mid,backgroundColor:C.mid,tension:.3,pointRadius:3}]},options:{...base,dlMode:'each',dlFmt:v=>v.toFixed(0)+'%',plugins:{legend:{display:false}},scales:{y:{grace:'12%',ticks:{callback:v=>v+'%'},grid:{color:'#E3EDF2'}},x:{grid:{display:false}}}}});
   // p4 weeks
   const wkey=s=>{ const dt=new Date(s); const wd=(dt.getDay()+6)%7; dt.setDate(dt.getDate()-wd); return dt.toISOString().slice(0,10); };
   const weeks={};
   D.forEach(d=>{ const k=wkey(d['日期']); (weeks[k]=weeks[k]||{rev:0}); weeks[k].rev+=num(d['營收']); });
   const wkeys=Object.keys(weeks).sort();
   if(wkeys.length){ document.getElementById('weekBox').innerHTML=''; document.getElementById('weekChartBox').style.display='block';
-    mk('cWeek',{type:'bar',data:{labels:wkeys.map(k=>k.slice(5)+'週'),datasets:[{data:wkeys.map(k=>weeks[k].rev/10000),backgroundColor:C.teal,borderRadius:4}]},options:{...base,plugins:{legend:{display:false}},scales:{y:{title:{display:true,text:'萬元'},grid:{color:'#E3EDF2'}},x:{grid:{display:false}}}}});
+    mk('cWeek',{type:'bar',data:{labels:wkeys.map(k=>k.slice(5)+'週'),datasets:[{data:wkeys.map(k=>weeks[k].rev/10000),backgroundColor:C.teal,borderRadius:4}]},options:{...base,dlMode:'each',dlFmt:v=>v.toFixed(1)+'萬',plugins:{legend:{display:false}},scales:{y:{grace:'12%',title:{display:true,text:'萬元'},grid:{color:'#E3EDF2'}},x:{grid:{display:false}}}}});
   }
   const actRows=(A.length?A:[]).slice().reverse().map(r=>{
     let cmp='—';
