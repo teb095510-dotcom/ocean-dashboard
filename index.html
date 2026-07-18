@@ -98,6 +98,16 @@ select { padding:7px 12px; border-radius:8px; border:1px solid #D6E4EC; font-siz
       <div class="panel"><h3>各分類金額（萬元）</h3><div class="chartbox lg"><canvas id="cMrCat"></canvas></div></div>
     </div>
     <div class="panel"><h3>分類金額與占比明細</h3><table id="tMrMix"></table></div>
+    <div class="panel"><h3>行銷成效｜網路廣告 <span class="muted" id="mkPeriod"></span></h3>
+      <div class="cards" id="mkCards"></div>
+      <div class="grid2">
+        <div class="panel" style="box-shadow:none;border:1px solid #E3EDF2"><h3>歷月：點擊量 vs 廣告花費(元)</h3><div class="chartbox sm"><canvas id="cMkTrend"></canvas></div></div>
+        <div class="panel" style="box-shadow:none;border:1px solid #E3EDF2"><h3>最新期：每日點擊量</h3><div class="chartbox sm"><canvas id="cMkDaily"></canvas></div></div>
+      </div>
+      <div class="panel" style="box-shadow:none;border:1px solid #E3EDF2"><h3>關鍵字表現 Top10（依點擊）</h3><div style="overflow-x:auto"><table id="tMkKw"></table></div></div>
+      <div id="mkNote" style="background:#FDF6E4;border-radius:8px;padding:10px 14px;margin-top:6px;font-size:13px"></div>
+      <div class="note">資料來源：「海洋探險島-行銷數據」試算表（每月由網路廣告行銷匯報檔更新；FB社群與LINE@數據待提供後擴充）。期別為每月16日～次月15日。</div>
+    </div>
   </div>
 
   <!-- ===== 商品與二消 ===== -->
@@ -135,7 +145,8 @@ const SHEETS = {
   goals:'18rPGumbOYvshqdAMj8Mm8NtN1c2cLmgeXCMJOAfQgv0',
   news:'1NKMK146UKwRhuMIioAADp7WikRO8dZkhcGynMo6L4l4',
   acts:'1AWcJeX_fp-fZfeIa36mPI2BYm28K3jJ1UvJsHZX6BOE',
-  moIndex:'1rdoGK_dwurVSs5I_pBF4faLakE7HmD4EBSw9vAKXh0E'
+  moIndex:'1rdoGK_dwurVSs5I_pBF4faLakE7HmD4EBSw9vAKXh0E',
+  mkt:'150hyzDTM5u6k6gg3WeYIotEomGyUo4tA2uvG3Xep5-w'
 };
 const csvUrl=id=>`https://docs.google.com/spreadsheets/d/${id}/gviz/tq?tqx=out:csv&t=${Date.now()}`;
 const expUrl=id=>`https://docs.google.com/spreadsheets/d/${id}/export?format=csv&t=${Date.now()}`;
@@ -173,7 +184,7 @@ function parseDailyReport(rows){ // rows: array of cell arrays; find rows: [day,
   });
   return out;
 }
-let M=[],G=[],N=[],A=[],MO=[],MODATA={};
+let M=[],G=[],N=[],A=[],MO=[],MODATA={},MK=[];
 const charts={}; const C={deep:'#065A82',teal:'#1C7293',gold:'#F4B942',coral:'#F96167',mid:'#21295C',grey:'#A9C6D4'};
 const dlPlugin={id:'dlp',afterDatasetsDraw(chart){const o=chart.config.options.dlMode;if(!o)return;const ctx=chart.ctx;ctx.save();ctx.font='bold 10px "Microsoft JhengHei",sans-serif';ctx.fillStyle='#3D5866';ctx.textAlign='center';
 if(o==='total'){const n=chart.data.labels.length;for(let i=0;i<n;i++){let tot=0,topY=1e9,x=0;chart.data.datasets.forEach((ds,di)=>{const m=chart.getDatasetMeta(di);if(m.hidden)return;const el=m.data[i];if(!el)return;tot+=Number(ds.data[i])||0;if(el.y<topY){topY=el.y;x=el.x;}});if(tot)ctx.fillText(Math.round(tot).toLocaleString(),x,topY-4);}}
@@ -187,7 +198,7 @@ const CATS=[['樂園現場',C.deep],['電商',C.teal],['團體',C.coral],['其�
 
 async function loadAll(){
   try{
-    [M,G,N,A,MO]=await Promise.all([getSheet(SHEETS.monthly),getSheet(SHEETS.goals),getSheet(SHEETS.news),getSheet(SHEETS.acts).catch(()=>[]),getSheet(SHEETS.moIndex).catch(()=>[])]);
+    [M,G,N,A,MO,MK]=await Promise.all([getSheet(SHEETS.monthly),getSheet(SHEETS.goals),getSheet(SHEETS.news),getSheet(SHEETS.acts).catch(()=>[]),getSheet(SHEETS.moIndex).catch(()=>[]),getSheet(SHEETS.mkt).catch(()=>[])]);
     MO=MO.filter(r=>/^\d{4}-\d{2}$/.test(r['月份']||'')&&(r['檔案ID']||'').length>10);
     // fetch all monthly daily-report files (for 月份頁 + 週對比)
     await Promise.all(MO.map(async r=>{
@@ -297,9 +308,37 @@ function renderMR(){
   };
   sel.onchange=draw; draw();
 }
+function renderMK(){
+  const hist=MK.filter(r=>r['類型']==='歷月').sort((a,b)=>(a['鍵']||'').localeCompare(b['鍵']||''));
+  if(!hist.length){ document.getElementById('mkCards').innerHTML='<div class="empty">尚無行銷數據</div>'; return; }
+  const last=hist[hist.length-1], prev=hist[hist.length-2];
+  document.getElementById('mkPeriod').textContent='｜期別 '+last['鍵'];
+  const ach=num(last['請款預算'])?num(last['花費含稅'])/num(last['請款預算'])*100:0;
+  const chg=(a,b)=>b?((a/b-1)*100):null;
+  const cards=[
+    ['廣告花費(含稅)', fmt(num(last['花費含稅']))+'元', '預算'+fmt(num(last['請款預算']))+'元・達成率'+ach.toFixed(0)+'%'],
+    ['曝光數', fmt(num(last['曝光'])), prev?('較上期 '+(chg(num(last['曝光']),num(prev['曝光']))>=0?'▲':'▼')+Math.abs(chg(num(last['曝光']),num(prev['曝光']))).toFixed(1)+'%'):''],
+    ['點擊數', fmt(num(last['點擊'])), '點閱率 '+(num(last['點擊率'])*100).toFixed(1)+'%'],
+    ['單次點擊成本', num(last['點擊成本']).toFixed(2)+'元', prev?('上期 '+num(prev['點擊成本']).toFixed(2)+'元'):''],
+  ];
+  document.getElementById('mkCards').innerHTML=cards.map(c=>`<div class="card"><div class="big">${c[1]}</div><div class="lbl">${c[0]}</div><div class="muted">${c[2]}</div></div>`).join('');
+  mk('cMkTrend',{type:'bar',data:{labels:hist.map(r=>r['鍵'].slice(2).replace('/16-','-')),datasets:[
+    {label:'點擊量',data:hist.map(r=>num(r['點擊'])),backgroundColor:C.teal,borderRadius:3},
+    {label:'花費(元)',data:hist.map(r=>num(r['花費含稅'])),backgroundColor:C.gold,borderRadius:3}]},
+    options:{...base,dlMode:'each',dlFmt:v=>fmt(v),scales:{y:{grace:'12%',grid:{color:'#E3EDF2'}},x:{grid:{display:false},ticks:{font:{size:9}}}}}});
+  const dd=MK.filter(r=>r['類型']==='每日').sort((a,b)=>(a['鍵']||'').localeCompare(b['鍵']||''));
+  mk('cMkDaily',{type:'bar',data:{labels:dd.map(r=>r['鍵'].slice(5)),datasets:[{data:dd.map(r=>num(r['點擊'])),backgroundColor:C.deep,borderRadius:2}]},
+    options:{...base,dlMode:'each',dlFmt:v=>fmt(v),plugins:{legend:{display:false}},scales:{y:{grace:'12%',grid:{color:'#E3EDF2'}},x:{grid:{display:false},ticks:{font:{size:9}}}}}});
+  const kws=MK.filter(r=>r['類型']==='關鍵字').sort((a,b)=>num(b['點擊'])-num(a['點擊'])).slice(0,10);
+  document.getElementById('tMkKw').innerHTML='<tr><th>關鍵字</th><th>群組</th><th class="r">曝光</th><th class="r">點擊</th><th class="r">點閱率</th><th class="r">點擊成本</th><th class="r">花費</th></tr>'+
+    kws.map(r=>`<tr><td><b>${r['鍵']}</b></td><td>${r['備註']||''}</td><td class="r">${fmt(num(r['曝光']))}</td><td class="r">${fmt(num(r['點擊']))}</td><td class="r">${(num(r['點擊率'])*100).toFixed(1)}%</td><td class="r">${num(r['點擊成本']).toFixed(2)}</td><td class="r">${fmt(num(r['投放金額']))}</td></tr>`).join('');
+  const note=MK.filter(r=>r['類型']==='重點方向').pop();
+  document.getElementById('mkNote').innerHTML=note?('<b>本期重點與方向：</b>'+(note['備註']||'')):'';
+  document.getElementById('mkNote').style.display=note?'block':'none';
+}
 function render(){
   document.getElementById('loading').style.display='none';
-  renderFY(); renderMonth(); renderMR();
+  renderFY(); renderMonth(); renderMR(); renderMK();
   const labels=M.map(r=>r['月份'].slice(2).replace('-','/'));
   // p3
   mk('cGoods',{type:'bar',data:{labels,datasets:[{data:M.map(r=>num(r['商品'])/10000),backgroundColor:C.gold,borderRadius:4}]},options:{...base,dlMode:'each',dlFmt:v=>v.toFixed(1)+'萬',plugins:{legend:{display:false}},scales:{y:{grace:'12%',title:{display:true,text:'萬元'},grid:{color:'#E3EDF2'}},x:{grid:{display:false}}}}});
