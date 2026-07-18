@@ -375,12 +375,17 @@ function render(){
     const tgt=num(r['營收目標']); const pct=tgt?Math.min(100,act/tgt*100):0;
     return `<div style="margin-bottom:12px"><b>${ymg}</b> 目標 ${wan(tgt)}萬 ｜ 實際 ${act?wan(act)+'萬':'—'} <span class="muted">${r['備註可自行修改']||''}</span><div class="progress"><div style="width:${pct}%">${pct.toFixed(0)}%</div></div></div>`; }).join('');
 }
+const PAGE_RENDER={p0:()=>renderFY(),p2:()=>{renderMR();renderMK();},pM:()=>renderMonth()};
 document.getElementById('tabs').addEventListener('click',e=>{
   const t=e.target.closest('.tab'); if(!t) return;
   document.querySelectorAll('.tab').forEach(x=>x.classList.remove('act'));
   document.querySelectorAll('.page').forEach(x=>x.classList.remove('act'));
   t.classList.add('act'); document.getElementById(t.dataset.p).classList.add('act');
-  requestAnimationFrame(()=>{ document.getElementById(t.dataset.p).querySelectorAll('canvas').forEach(cv=>{ const ch=Object.values(charts).find(c=>c.canvas===cv); if(ch){ ch.resize(); ch.update('none'); } }); });
+  requestAnimationFrame(()=>{
+    const fn=PAGE_RENDER[t.dataset.p];
+    if(fn){ try{ fn(); }catch(e){} }
+    else document.getElementById(t.dataset.p).querySelectorAll('canvas').forEach(cv=>{ const ch=Object.values(charts).find(c=>c.canvas===cv); if(ch){ ch.resize(); ch.update('none'); } });
+  });
 });
 loadAll();
 </script>
