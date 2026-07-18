@@ -146,7 +146,7 @@ const SHEETS = {
   news:'1NKMK146UKwRhuMIioAADp7WikRO8dZkhcGynMo6L4l4',
   acts:'1AWcJeX_fp-fZfeIa36mPI2BYm28K3jJ1UvJsHZX6BOE',
   moIndex:'1rdoGK_dwurVSs5I_pBF4faLakE7HmD4EBSw9vAKXh0E',
-  mkt:'150hyzDTM5u6k6gg3WeYIotEomGyUo4tA2uvG3Xep5-w'
+  mkt:'1JGosxSwzI6xGmJ5J2vFsCQNc_KSb85toSOubUkEmSuk'
 };
 const csvUrl=id=>`https://docs.google.com/spreadsheets/d/${id}/gviz/tq?tqx=out:csv&t=${Date.now()}`;
 const expUrl=id=>`https://docs.google.com/spreadsheets/d/${id}/export?format=csv&t=${Date.now()}`;
@@ -312,7 +312,8 @@ function renderMK(){
   const hist=MK.filter(r=>r['類型']==='歷月').sort((a,b)=>(a['鍵']||'').localeCompare(b['鍵']||''));
   if(!hist.length){ document.getElementById('mkCards').innerHTML='<div class="empty">尚無行銷數據</div>'; return; }
   const last=hist[hist.length-1], prev=hist[hist.length-2];
-  document.getElementById('mkPeriod').textContent='｜期別 '+last['鍵'];
+  const mkKey=k=>String(k||'').replace(/^期 |^日 /,'');
+  document.getElementById('mkPeriod').textContent='｜期別 '+mkKey(last['鍵']);
   const ach=num(last['請款預算'])?num(last['花費含稅'])/num(last['請款預算'])*100:0;
   const chg=(a,b)=>b?((a/b-1)*100):null;
   const cards=[
@@ -322,12 +323,12 @@ function renderMK(){
     ['單次點擊成本', num(last['點擊成本']).toFixed(2)+'元', prev?('上期 '+num(prev['點擊成本']).toFixed(2)+'元'):''],
   ];
   document.getElementById('mkCards').innerHTML=cards.map(c=>`<div class="card"><div class="big">${c[1]}</div><div class="lbl">${c[0]}</div><div class="muted">${c[2]}</div></div>`).join('');
-  mk('cMkTrend',{type:'bar',data:{labels:hist.map(r=>r['鍵'].slice(2).replace('/16-','-')),datasets:[
+  mk('cMkTrend',{type:'bar',data:{labels:hist.map(r=>mkKey(r['鍵']).slice(2).replace('/16-','-')),datasets:[
     {label:'點擊量',data:hist.map(r=>num(r['點擊'])),backgroundColor:C.teal,borderRadius:3},
     {label:'花費(元)',data:hist.map(r=>num(r['花費含稅'])),backgroundColor:C.gold,borderRadius:3}]},
     options:{...base,dlMode:'each',dlFmt:v=>fmt(v),scales:{y:{grace:'12%',grid:{color:'#E3EDF2'}},x:{grid:{display:false},ticks:{font:{size:9}}}}}});
-  const dd=MK.filter(r=>r['類型']==='每日').sort((a,b)=>(a['鍵']||'').localeCompare(b['鍵']||''));
-  mk('cMkDaily',{type:'bar',data:{labels:dd.map(r=>r['鍵'].slice(5)),datasets:[{data:dd.map(r=>num(r['點擊'])),backgroundColor:C.deep,borderRadius:2}]},
+  const dd=MK.filter(r=>r['類型']==='每日').sort((a,b)=>mkKey(a['鍵']).localeCompare(mkKey(b['鍵'])));
+  mk('cMkDaily',{type:'bar',data:{labels:dd.map(r=>mkKey(r['鍵']).slice(5)),datasets:[{data:dd.map(r=>num(r['點擊'])),backgroundColor:C.deep,borderRadius:2}]},
     options:{...base,dlMode:'each',dlFmt:v=>fmt(v),plugins:{legend:{display:false}},scales:{y:{grace:'12%',grid:{color:'#E3EDF2'}},x:{grid:{display:false},ticks:{font:{size:9}}}}}});
   const kws=MK.filter(r=>r['類型']==='關鍵字').sort((a,b)=>num(b['點擊'])-num(a['點擊'])).slice(0,10);
   document.getElementById('tMkKw').innerHTML='<tr><th>關鍵字</th><th>群組</th><th class="r">曝光</th><th class="r">點擊</th><th class="r">點閱率</th><th class="r">點擊成本</th><th class="r">花費</th></tr>'+
