@@ -158,13 +158,13 @@ async function getRawCsv(id){
 const num=v=>{ const n=parseFloat(String(v||'').replace(/[$,\s]/g,'')); return isNaN(n)?0:n; };
 const fmt=n=>n==null?'—':Math.round(n).toLocaleString('zh-TW');
 const wan=n=>(n/10000).toFixed(0);
-const WD=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+const isWD=s=>/^(Mon|Tue|Wed|Thu|Fri|Sat|Sun)$/.test(s)||/^週[一二三四五六日]$/.test(s);
 function parseDailyReport(rows){ // rows: array of cell arrays; find rows: [day, weekday, 平日/假日, 單日銷售額, ..., 總人數@22]
   const out=[];
   rows.forEach(r=>{
     const d=parseInt(String(r[0]||'').trim());
     const wd=String(r[1]||'').trim();
-    if(d>=1&&d<=31&&WD.includes(wd)){
+    if(d>=1&&d<=31&&isWD(wd)){
       const rev=num(r[3]); const ppl=num(r[22]);
       out.push({day:d, wd, type:String(r[2]||'').trim(), rev, ppl});
     }
