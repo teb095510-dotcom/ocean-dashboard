@@ -311,7 +311,7 @@ document.getElementById('tabs').addEventListener('click',e=>{
   document.querySelectorAll('.tab').forEach(x=>x.classList.remove('act'));
   document.querySelectorAll('.page').forEach(x=>x.classList.remove('act'));
   t.classList.add('act'); document.getElementById(t.dataset.p).classList.add('act');
-  Object.values(charts).forEach(c=>c.resize());
+  requestAnimationFrame(()=>{ document.getElementById(t.dataset.p).querySelectorAll('canvas').forEach(cv=>{ const ch=Object.values(charts).find(c=>c.canvas===cv); if(ch){ ch.resize(); ch.update('none'); } }); });
 });
 loadAll();
 </script>
