@@ -61,8 +61,8 @@ select { padding:7px 12px; border-radius:8px; border:1px solid #D6E4EC; font-siz
   <div class="err" id="errBox"></div>
   <div class="tabs" id="tabs">
     <div class="tab act" data-p="p0">① 年度</div>
-    <div class="tab" data-p="pM">② 月份</div>
-    <div class="tab" data-p="p2">③ 營業數據</div>
+    <div class="tab" data-p="p2">② 月報表</div>
+    <div class="tab" data-p="pM">③ 當月即時</div>
     <div class="tab" data-p="p3">④ 商品與二消</div>
     <div class="tab" data-p="p4">⑤ 活動檢討</div>
     <div class="tab" data-p="p5">⑥ 競業新聞</div>
@@ -81,7 +81,7 @@ select { padding:7px 12px; border-radius:8px; border:1px solid #D6E4EC; font-siz
     <div class="panel"><h3>分類金額與占比明細</h3><table id="tFyMix"></table></div>
   </div>
 
-  <!-- ===== 月份 ===== -->
+  <!-- ===== 當月即時 ===== -->
   <div class="page" id="pM">
     <div class="selrow panel" style="margin-bottom:14px"><b>月份：</b><select id="moSel"></select><span class="muted" id="moSrc"></span></div>
     <div class="cards" id="moCards"></div>
@@ -89,13 +89,15 @@ select { padding:7px 12px; border-radius:8px; border:1px solid #D6E4EC; font-siz
     <div class="panel"><h3>每日入園人數</h3><div class="chartbox lg"><canvas id="cMoPpl"></canvas></div></div>
   </div>
 
-  <!-- ===== 營業數據 ===== -->
+  <!-- ===== 月報表 ===== -->
   <div class="page" id="p2">
-    <div class="panel"><h3>各收入區塊 月別明細</h3><div style="overflow-x:auto"><table id="tBlocks"></table></div></div>
+    <div class="selrow panel" style="margin-bottom:14px"><b>月份：</b><select id="mrSel"></select></div>
+    <div class="cards" id="mrCards"></div>
     <div class="grid2">
-      <div class="panel"><h3>客單價走勢（元/人）</h3><div class="chartbox sm"><canvas id="cArpu"></canvas></div></div>
-      <div class="panel"><h3>入園人次：付費 vs 免費/預售兌換</h3><div class="chartbox sm"><canvas id="cPpl"></canvas></div></div>
+      <div class="panel"><h3 id="mrMixTitle">營收分類占比</h3><div class="chartbox lg"><canvas id="cMrMix"></canvas></div></div>
+      <div class="panel"><h3>各分類金額（萬元）</h3><div class="chartbox lg"><canvas id="cMrCat"></canvas></div></div>
     </div>
+    <div class="panel"><h3>分類金額與占比明細</h3><table id="tMrMix"></table></div>
   </div>
 
   <!-- ===== 商品與二消 ===== -->
@@ -263,15 +265,42 @@ function renderMonth(){
   sel.onchange=draw; draw();
 }
 
+function renderMR(){
+  const sel=document.getElementById('mrSel');
+  const months=M.map(r=>r['月份']);
+  sel.innerHTML=months.map(m=>`<option value="${m}">${m.replace('-','年')}月</option>`).join('');
+  sel.value=months[months.length-1];
+  const draw=()=>{
+    const ym=sel.value;
+    const idx=M.findIndex(r=>r['月份']===ym);
+    const row=M[idx]||{}, prev=M[idx-1];
+    const chg=(a,b)=>b?((a/b-1)*100):null;
+    const cards=[
+      ['月總營收', wan(num(row['總營收']))+'萬', prev?chg(num(row['總營收']),num(prev['總營收'])):null],
+      ['月總人數', fmt(num(row['總入園人次'])), prev?chg(num(row['總入園人次']),num(prev['總入園人次'])):null],
+      ['客單價', num(row['客單價'])+'元', prev?chg(num(row['客單價']),num(prev['客單價'])):null],
+      ['付費入園', fmt(num(row['付費入園'])), prev?chg(num(row['付費入園']),num(prev['付費入園'])):null],
+    ];
+    document.getElementById('mrCards').innerHTML=cards.map(c=>{
+      const ch=c[2]==null?'':`<span class="chg ${c[2]>=0?'up':'dn'}">${c[2]>=0?'▲':'▼'} ${Math.abs(c[2]).toFixed(1)}% (月增)</span>`;
+      return `<div class="card"><div class="big">${c[1]}</div><div class="lbl">${c[0]}（${ym}）</div>${ch}</div>`; }).join('');
+    const sums=CATS.map(k=>Math.max(0,num(row[k[0]])));
+    const tot=sums.reduce((a,b)=>a+b,0);
+    document.getElementById('mrMixTitle').textContent='營收分類占比（'+ym.replace('-','年')+'月）';
+    mk('cMrMix',{type:'doughnut',data:{labels:CATS.map((k,i)=>k[0]+' '+(tot?(sums[i]/tot*100).toFixed(1):0)+'%'),datasets:[{data:sums,backgroundColor:CATS.map(k=>k[1])}]},
+      options:{...base,dlMode:'pie',plugins:{legend:{position:'right'}}}});
+    mk('cMrCat',{type:'bar',data:{labels:CATS.map(k=>k[0]),datasets:[{data:sums.map(v=>v/10000),backgroundColor:CATS.map(k=>k[1]),borderRadius:4}]},
+      options:{...base,dlMode:'each',dlFmt:v=>v.toFixed(1)+'萬',plugins:{legend:{display:false}},scales:{y:{grace:'12%',title:{display:true,text:'萬元'},grid:{color:'#E3EDF2'}},x:{grid:{display:false}}}}});
+    document.getElementById('tMrMix').innerHTML='<tr><th>分類</th><th class="r">金額</th><th class="r">占比</th></tr>'+
+      CATS.map((k,i)=>`<tr><td>${k[0]}</td><td class="r">${fmt(sums[i])}</td><td class="r"><b>${tot?(sums[i]/tot*100).toFixed(1):0}%</b></td></tr>`).join('')+
+      `<tr><td><b>合計</b></td><td class="r"><b>${fmt(tot)}</b></td><td class="r"><b>100%</b></td></tr>`;
+  };
+  sel.onchange=draw; draw();
+}
 function render(){
   document.getElementById('loading').style.display='none';
-  renderFY(); renderMonth();
+  renderFY(); renderMonth(); renderMR();
   const labels=M.map(r=>r['月份'].slice(2).replace('-','/'));
-  // p2
-  const cols=['月份','總營收','樂園現場','專案','電商','團體','其他','特殊活動','商品','餐飲','總入園人次','付費入園','客單價','備註'];
-  document.getElementById('tBlocks').innerHTML='<tr>'+cols.map(c=>`<th${['月份','備註'].includes(c)?'':' class="r"'}>${c}</th>`).join('')+'</tr>'+M.slice().reverse().map(r=>'<tr>'+cols.map(c=>['月份','備註'].includes(c)?`<td>${r[c]||''}</td>`:`<td class="r">${fmt(num(r[c]))}</td>`).join('')+'</tr>').join('');
-  mk('cArpu',{type:'line',data:{labels,datasets:[{data:M.map(r=>num(r['客單價'])),borderColor:C.teal,backgroundColor:C.teal,tension:.3,pointRadius:3}]},options:{...base,dlMode:'each',dlFmt:v=>Math.round(v)+'元',plugins:{legend:{display:false}},scales:{y:{grace:'12%',grid:{color:'#E3EDF2'}},x:{grid:{display:false}}}}});
-  mk('cPpl',{type:'bar',data:{labels,datasets:[{label:'付費',data:M.map(r=>num(r['付費入園'])),backgroundColor:C.deep,stack:'s'},{label:'免費/兌換',data:M.map(r=>num(r['免費兌換'])),backgroundColor:C.gold,stack:'s'}]},options:{...base,dlMode:'total',scales:{x:{stacked:true,grid:{display:false}},y:{stacked:true,grace:'12%',grid:{color:'#E3EDF2'}}}}});
   // p3
   mk('cGoods',{type:'bar',data:{labels,datasets:[{data:M.map(r=>num(r['商品'])/10000),backgroundColor:C.gold,borderRadius:4}]},options:{...base,dlMode:'each',dlFmt:v=>v.toFixed(1)+'萬',plugins:{legend:{display:false}},scales:{y:{grace:'12%',title:{display:true,text:'萬元'},grid:{color:'#E3EDF2'}},x:{grid:{display:false}}}}});
   mk('cFood',{type:'bar',data:{labels,datasets:[{data:M.map(r=>num(r['餐飲'])/10000),backgroundColor:'#2E8B74',borderRadius:4}]},options:{...base,dlMode:'each',dlFmt:v=>v.toFixed(1)+'萬',plugins:{legend:{display:false}},scales:{y:{grace:'12%',title:{display:true,text:'萬元'},grid:{color:'#E3EDF2'}},x:{grid:{display:false}}}}});
