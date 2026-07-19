@@ -145,8 +145,10 @@ select { padding:7px 12px; border-radius:8px; border:1px solid #D6E4EC; font-siz
       <h3>待辦事項</h3>
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px">
         <input id="todoItem" placeholder="事項內容" style="flex:2;min-width:180px;padding:8px 12px;border:1px solid #D6E4EC;border-radius:8px;font-size:13.5px">
-        <input id="todoOwner" placeholder="負責人" style="flex:1;min-width:100px;padding:8px 12px;border:1px solid #D6E4EC;border-radius:8px;font-size:13.5px">
-        <input id="todoDue" type="date" style="padding:8px 12px;border:1px solid #D6E4EC;border-radius:8px;font-size:13.5px">
+        <input id="todoAssigner" placeholder="交辦人" style="width:90px;padding:8px 12px;border:1px solid #D6E4EC;border-radius:8px;font-size:13.5px">
+        <input id="todoOwner" placeholder="處理人" style="width:90px;padding:8px 12px;border:1px solid #D6E4EC;border-radius:8px;font-size:13.5px">
+        <input id="todoStart" type="date" title="開始日" style="padding:8px 12px;border:1px solid #D6E4EC;border-radius:8px;font-size:13.5px">
+        <input id="todoEnd" type="date" title="完成日" style="padding:8px 12px;border:1px solid #D6E4EC;border-radius:8px;font-size:13.5px">
         <button class="btn" onclick="todoAdd()">＋ 新增待辦</button>
       </div>
       <div id="todoList"><div class="empty">讀取中…</div></div>
@@ -397,6 +399,8 @@ function render(){
 // 貼上 todo-apps-script.gs 內容 → 部署 → 新增部署作業 → 網頁應用程式 →
 // 執行身分：我 / 存取權限：任何人 → 部署後複製網址貼到下方 TODO_API。
 const TODO_API = 'https://script.google.com/macros/s/AKfycbx8D_bclWiw-hAjz12MA5wPcPs6HKc8ObUKWDpxdWBp_f41az1BACIVXaFWCiqP0K7Fzw/exec';
+const TODO_STATUSES=['待辦','執行中','已完成','有困難'];
+const TODO_CLS={待辦:'b-mid',執行中:'b-info',已完成:'b-opp',有困難:'b-high'};
 async function todoLoad(){
   const el=document.getElementById('todoList');
   if(!TODO_API || TODO_API.indexOf('PASTE_')===0){ el.innerHTML='<div class="empty">尚未設定待辦事項 API 網址，請依下方部署說明完成後填入 TODO_API</div>'; return; }
@@ -406,35 +410,47 @@ async function todoLoad(){
     const j=await res.json();
     const rows=j.rows||[];
     if(!rows.length){ el.innerHTML='<div class="empty">目前沒有待辦事項</div>'; return; }
-    rows.sort((a,b)=>(a.status==='完成')-(b.status==='完成')||String(a.due||'').localeCompare(String(b.due||'')));
-    el.innerHTML=rows.map(r=>`
-      <div style="display:flex;align-items:center;gap:10px;padding:9px 4px;border-bottom:1px solid #E3EDF2">
-        <input type="checkbox" ${r.status==='完成'?'checked':''} onchange="todoToggle(${r.row})" style="width:18px;height:18px;flex-shrink:0">
-        <div style="flex:1">
-          <div style="${r.status==='完成'?'text-decoration:line-through;color:#9AAAB2':''}">${r.item}</div>
-          <div class="muted">${r.owner||''}${r.due?'・到期 '+r.due:''}${r.note?'・'+r.note:''}</div>
+    const order={執行中:0,待辦:1,有困難:1,已完成:2};
+    rows.sort((a,b)=>(order[a.status]??1)-(order[b.status]??1)||String(a.end||'').localeCompare(String(b.end||'')));
+    el.innerHTML=rows.map(r=>{
+      const st=TODO_STATUSES.includes(r.status)?r.status:'待辦';
+      return `<div style="padding:10px 4px;border-bottom:1px solid #E3EDF2">
+        <div style="display:flex;align-items:center;gap:10px">
+          <select onchange="todoSetField(${r.row},'status',this.value)" class="badge ${TODO_CLS[st]}" style="border:none;cursor:pointer">
+            ${TODO_STATUSES.map(s=>`<option value="${s}" ${s===st?'selected':''}>${s}</option>`).join('')}
+          </select>
+          <div style="flex:1;font-weight:bold;${st==='已完成'?'text-decoration:line-through;color:#9AAAB2':''}">${r.item}</div>
+          <button onclick="todoDelete(${r.row})" title="刪除" style="border:none;background:none;color:#C43D3C;cursor:pointer;font-size:16px;flex-shrink:0">✕</button>
         </div>
-        <span class="badge ${r.status==='完成'?'b-opp':(r.status==='進行中'?'b-info':'b-mid')}">${r.status||'待辦'}</span>
-        <button onclick="todoDelete(${r.row})" title="刪除" style="border:none;background:none;color:#C43D3C;cursor:pointer;font-size:16px;flex-shrink:0">✕</button>
-      </div>`).join('');
+        <div style="display:flex;gap:14px;flex-wrap:wrap;margin-top:6px;font-size:12px;color:#5C7885;align-items:center">
+          <span>交辦人 <input value="${r.assigner||''}" onchange="todoSetField(${r.row},'assigner',this.value)" style="width:70px;border:1px solid #E3EDF2;border-radius:6px;padding:2px 6px;font-size:12px"></span>
+          <span>處理人 <input value="${r.owner||''}" onchange="todoSetField(${r.row},'owner',this.value)" style="width:70px;border:1px solid #E3EDF2;border-radius:6px;padding:2px 6px;font-size:12px"></span>
+          <span>開始日 <input type="date" value="${r.start||''}" onchange="todoSetField(${r.row},'start',this.value)" style="border:1px solid #E3EDF2;border-radius:6px;padding:2px 6px;font-size:12px"></span>
+          <span>完成日 <input type="date" value="${r.end||''}" onchange="todoSetField(${r.row},'end',this.value)" style="border:1px solid #E3EDF2;border-radius:6px;padding:2px 6px;font-size:12px"></span>
+          ${r.note?`<span class="muted">${r.note}</span>`:''}
+        </div>
+      </div>`;
+    }).join('');
   }catch(err){ el.innerHTML='<div class="empty">讀取失敗，請確認 Apps Script 網址正確且已部署為「任何人」可存取</div>'; }
 }
 async function todoPost(body){
-  const st=document.getElementById('todoStatus'); st.textContent='處理中…';
+  const st=document.getElementById('todoStatus'); if(st)st.textContent='處理中…';
   try{
     await fetch(TODO_API,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(body)});
-    st.textContent=''; todoLoad();
-  }catch(err){ st.textContent='寫入失敗，請確認網路或 API 設定'; }
+    if(st)st.textContent=''; todoLoad();
+  }catch(err){ if(st)st.textContent='寫入失敗，請確認網路或 API 設定'; }
 }
 function todoAdd(){
   const item=document.getElementById('todoItem').value.trim();
   if(!item){ return; }
+  const assigner=document.getElementById('todoAssigner').value.trim();
   const owner=document.getElementById('todoOwner').value.trim();
-  const due=document.getElementById('todoDue').value;
-  todoPost({action:'add',status:'待辦',item,owner,due,note:''});
-  document.getElementById('todoItem').value=''; document.getElementById('todoOwner').value=''; document.getElementById('todoDue').value='';
+  const start=document.getElementById('todoStart').value;
+  const end=document.getElementById('todoEnd').value;
+  todoPost({action:'add',status:'待辦',item,assigner,owner,start,end,note:''});
+  document.getElementById('todoItem').value=''; document.getElementById('todoAssigner').value=''; document.getElementById('todoOwner').value=''; document.getElementById('todoStart').value=''; document.getElementById('todoEnd').value='';
 }
-function todoToggle(row){ todoPost({action:'toggle',row}); }
+function todoSetField(row,field,value){ todoPost({action:'setField',row,field,value}); }
 function todoDelete(row){ if(confirm('確定刪除此待辦事項？')) todoPost({action:'delete',row}); }
 
 const PAGE_RENDER={p0:()=>renderFY(),p2:()=>{renderMR();renderMK();},pM:()=>renderMonth(),p7:()=>todoLoad()};
