@@ -396,7 +396,7 @@ function render(){
 // 部署步驟：開啟「海洋探險島-待辦事項」試算表 → 擴充功能 → Apps Script →
 // 貼上 todo-apps-script.gs 內容 → 部署 → 新增部署作業 → 網頁應用程式 →
 // 執行身分：我 / 存取權限：任何人 → 部署後複製網址貼到下方 TODO_API。
-const TODO_API = 'PASTE_YOUR_APPS_SCRIPT_WEB_APP_URL_HERE';
+const TODO_API = 'https://script.google.com/macros/s/AKfycbx8D_bclWiw-hAjz12MA5wPcPs6HKc8ObUKWDpxdWBp_f41az1BACIVXaFWCiqP0K7Fzw/exec';
 async function todoLoad(){
   const el=document.getElementById('todoList');
   if(!TODO_API || TODO_API.indexOf('PASTE_')===0){ el.innerHTML='<div class="empty">尚未設定待辦事項 API 網址，請依下方部署說明完成後填入 TODO_API</div>'; return; }
